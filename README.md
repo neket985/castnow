@@ -1,3 +1,18 @@
+install ffmpeg
+brew install ffmpeg
+
+for intel macs
+install soundflower for configuring output audio device (for screenrecorder)
+brew install --cask soundflower
+
+for m1 macs
+install blackhole for configuring output audio device (for screenrecorder)
+brew install blackhole-2ch
+
+заходим в настройку Audio-MIDI b перенаправляем выход на blackhole-2ch
+командой ffmpeg -list_devices true -f avfoundation -i dummy получаем список выходов
+выбираем индексы "Capture screen" и "BlackHole 2ch"
+
 # castnow
 
 Castnow is a command-line utility that can be used to play back media files on

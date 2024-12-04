@@ -23,6 +23,7 @@ var torrent = require('./plugins/torrent');
 var transcode = require('./plugins/transcode');
 var subtitles = require('./plugins/subtitles');
 var stdin = require('./plugins/stdin');
+var screen = require('./plugins/screen');
 
 var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
 var rcOpts = [];
@@ -435,6 +436,7 @@ player.use(function(ctx, next) {
 });
 
 player.use(stdin);
+player.use(screen);
 player.use(directories);
 player.use(torrent);
 player.use(xspf);

@@ -7,7 +7,9 @@
     "castnow": "./index.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "./index.js",
+    "screen": "./screencast/screen.js"
   },
   "author": "Simon Kusterer",
   "license": "MIT",
@@ -35,6 +37,8 @@
     "debounced-seeker": "^1.0.0",
     "debug": "^2.1.0",
     "diveSync": "^0.3.0",
+    "ffmpeg": "^0.0.4",
+    "ffmpeg-static": "^5.2.0",
     "got": "^1.2.2",
     "internal-ip": "^3.0.1",
     "keypress": "^0.2.1",
