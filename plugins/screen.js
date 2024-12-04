@@ -10,34 +10,59 @@ var isScreen = function (item) {
     return screenRegex.test(item.path);
 };
 
+let screenCastFfmpegArgs = function (castDeviceIndexes) {
+    return [
+        "-f", "avfoundation",
+        "-y",
+        "-i", castDeviceIndexes,
+    ]
+}
+let encoderFfmpegArgs = [
+    "-c:v", "libx264",
+    "-c:a", "aac",
+    "-r", "25",
+    "-pix_fmt", "yuv420p",
+    "-preset", "fast", //ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow\
+]
+let bitrateFfmpegArgs = function(rate){
+    return [
+        "-maxrate", rate,
+        "-bufsize", "1835k",
+    ]
+}
+let hlsFfmpegArgs = function (bitrateFolder) {
+    return [
+        "-start_number", "0",
+        "-x264-params", "keyint=15:min-keyint=15", // Sets the key frame interval low enough to enable 1 second chunk size
+        "-hls_time", "1",
+        "-hls_list_size", "20",
+        // "-hls_enc", "1",
+        // "-hls_playlist_type", "event",
+        "-hls_segment_filename", bitrateFolder + "/screencast_seg_%03d.ts",
+        "-hls_flags", "split_by_time+delete_segments+temp_file",
+        "-f", "hls",
+        bitrateFolder + "/capture.m3u8"
+    ]
+}
+
+var clearDirectory = function(path){
+    if(fs.existsSync(path)){
+        fs.rmdirSync(path, { recursive: true })
+    }
+    fs.mkdirSync(path)
+}
+
 var startScreenCasting = function (castDeviceIndexes) {
+    clearDirectory("200k")
+    clearDirectory("400k")
+    clearDirectory("700k")
     const ffmpegProcess = spawn(
         ffmpeg,
-        // hls
-        [
-            "-f", "avfoundation",
-            "-y",
-            "-i", castDeviceIndexes,
-            "-c:v", "libx264",
-            "-b:v", "2000k",
-            // "-level:v", "4.2", "-b:v", "2000k",
-            "-c:a", "aac",
-            "-r", "25",
-            "-pix_fmt", "yuv420p",
-            "-preset", "fast", //ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow\
-
-            // "-streaming", "1",
-            "-start_number", "0",
-            "-x264-params", "keyint=15:min-keyint=15", // Sets the key frame interval low enough to enable 1 second chunk size
-            "-hls_time", "1",
-            "-hls_list_size", "20",
-            // "-hls_enc", "1",
-            // "-hls_playlist_type", "event",
-            "-hls_segment_filename", "screencast_seg_%03d.ts",
-            "-hls_flags", "split_by_time+delete_segments+temp_file",
-            "-f", "hls",
-            "capture.m3u8"
-        ],
+        screenCastFfmpegArgs(castDeviceIndexes)
+            .concat(encoderFfmpegArgs, bitrateFfmpegArgs("200k"), hlsFfmpegArgs("200k"))
+            .concat(encoderFfmpegArgs, bitrateFfmpegArgs("400k"), hlsFfmpegArgs("400k"))
+            .concat(encoderFfmpegArgs, bitrateFfmpegArgs("700k"), hlsFfmpegArgs("700k"))
+        ,
         {stdio: "pipe"}
     );
 
