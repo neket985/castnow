@@ -10,10 +10,7 @@ var isScreen = function (item) {
     return screenRegex.test(item.path);
 };
 
-var startScreenCasting = function(castDeviceIndexes) {
-
-    // todo remove old chunks after 1m or later
-    // todo try h256 (for mp4)
+var startScreenCasting = function (castDeviceIndexes) {
     const ffmpegProcess = spawn(
         ffmpeg,
         // hls
@@ -22,18 +19,22 @@ var startScreenCasting = function(castDeviceIndexes) {
             "-y",
             "-i", castDeviceIndexes,
             "-c:v", "libx264",
+            "-b:v", "2000k",
             // "-level:v", "4.2", "-b:v", "2000k",
             "-c:a", "aac",
             "-r", "25",
             "-pix_fmt", "yuv420p",
-            "-preset", "veryfast", //ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow\
+            "-preset", "fast", //ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow\
 
             // "-streaming", "1",
-            "-hls_time", "10",
+            "-start_number", "0",
+            "-x264-params", "keyint=15:min-keyint=15", // Sets the key frame interval low enough to enable 1 second chunk size
+            "-hls_time", "1",
             "-hls_list_size", "20",
+            // "-hls_enc", "1",
             // "-hls_playlist_type", "event",
             "-hls_segment_filename", "screencast_seg_%03d.ts",
-            "-hls_flags", "split_by_time+delete_segments+omit_endlist+append_list",
+            "-hls_flags", "split_by_time+delete_segments+temp_file",
             "-f", "hls",
             "capture.m3u8"
         ],
@@ -43,6 +44,24 @@ var startScreenCasting = function(castDeviceIndexes) {
     ffmpegProcess.stderr.pipe(process.stderr);
     ffmpegProcess.stdout.pipe(process.stdout);
 
+}
+
+var readFileWithRetries = function (path, onSuccess, onError, timeout = 500, maxTries = 10, tryCount = 0) {
+    var s = fs.createReadStream(path);
+    s.on('open', function () {
+        onSuccess(s);
+    });
+    s.on('error', function () {
+        if (tryCount < maxTries) {
+            setTimeout(() => {
+                    readFileWithRetries(path, onSuccess, onError, timeout, maxTries, tryCount + 1);
+                }, timeout
+            );
+        } else {
+            console.error("Exceed tries while reading " + path + " file")
+            onError()
+        }
+    });
 }
 
 var screen = function (ctx, next) {
@@ -62,16 +81,19 @@ var screen = function (ctx, next) {
     http.createServer(function (req, res) {
         debug('received request ' + req.url);
         var type = 'application/x-mpegURL';
-        var s = fs.createReadStream(req.url.replace("/", ""));
-        s.on('open', function () {
-            res.setHeader("Content-Type", type)
-            res.setHeader("Access-Control-Allow-Origin", "*")
-            s.pipe(res);
-        });
-        s.on('error', function () {
-            res.statusCode = 404
-            //todo await
-        });
+        readFileWithRetries(
+            req.url.replace("/", ""),
+            function (s) {
+                res.setHeader("Content-Type", type)
+                res.setHeader("Access-Control-Allow-Origin", "*")
+                s.pipe(res);
+            },
+            function () {
+                res.statusCode = 404
+            },
+            500,
+            20
+        )
     }).listen(port);
 
     debug('started webserver for screencast on address %s using port %s', ip, port);
