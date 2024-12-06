@@ -21,53 +21,56 @@ let encoderFfmpegArgs = [
     "-c:v", "libx264",
     "-c:a", "aac",
     "-r", "25",
+    "-crf", "20",
     "-pix_fmt", "yuv420p",
     "-preset", "fast", //ultrafast,superfast,veryfast,faster,fast,medium,slow,slower,veryslow\
+    // "-vf", "scale=1920:-2",
 ]
-let bitrateFfmpegArgs = function(rate){
+let bitrateFfmpegArgs = function (rate) {
     return [
         "-maxrate", rate,
-        "-bufsize", "1835k",
+        "-bufsize", rate,
     ]
 }
 let hlsFfmpegArgs = function (bitrateFolder) {
     return [
         "-start_number", "0",
-        "-x264-params", "keyint=15:min-keyint=15", // Sets the key frame interval low enough to enable 1 second chunk size
-        "-hls_time", "1",
-        "-hls_list_size", "20",
+        "-x264-params", "keyint=1:min-keyint=1:scenecut=0", // Sets the key frame interval low enough to enable 1 second chunk size
+        "-reset_timestamps", "1",
+        "-hls_time", "2",
+        "-hls_list_size", "3",
         // "-hls_enc", "1",
         // "-hls_playlist_type", "event",
         "-hls_segment_filename", bitrateFolder + "/screencast_seg_%03d.ts",
-        "-hls_flags", "split_by_time+delete_segments+temp_file",
+        "-hls_flags", "delete_segments+temp_file+program_date_time+independent_segments",
         "-f", "hls",
         bitrateFolder + "/capture.m3u8"
     ]
 }
 
-var clearDirectory = function(path){
-    if(fs.existsSync(path)){
-        fs.rmdirSync(path, { recursive: true })
+var clearDirectory = function (path) {
+    if (fs.existsSync(path)) {
+        fs.rmdirSync(path, {recursive: true})
     }
     fs.mkdirSync(path)
 }
 
 var startScreenCasting = function (castDeviceIndexes) {
-    clearDirectory("200k")
-    clearDirectory("400k")
-    clearDirectory("700k")
+    // clearDirectory("800k")
+    // clearDirectory("1600k")
+    clearDirectory("2400k")
     const ffmpegProcess = spawn(
         ffmpeg,
         screenCastFfmpegArgs(castDeviceIndexes)
-            .concat(encoderFfmpegArgs, bitrateFfmpegArgs("200k"), hlsFfmpegArgs("200k"))
-            .concat(encoderFfmpegArgs, bitrateFfmpegArgs("400k"), hlsFfmpegArgs("400k"))
-            .concat(encoderFfmpegArgs, bitrateFfmpegArgs("700k"), hlsFfmpegArgs("700k"))
+            // .concat(encoderFfmpegArgs, bitrateFfmpegArgs("800k"), hlsFfmpegArgs("800k"))
+            // .concat(encoderFfmpegArgs, bitrateFfmpegArgs("1600k"), hlsFfmpegArgs("1600k"))
+            .concat(encoderFfmpegArgs, bitrateFfmpegArgs("2400k"), hlsFfmpegArgs("2400k"))
         ,
         {stdio: "pipe"}
     );
 
-    ffmpegProcess.stderr.pipe(process.stderr);
-    ffmpegProcess.stdout.pipe(process.stdout);
+    // ffmpegProcess.stderr.pipe(process.stderr);
+    // ffmpegProcess.stdout.pipe(process.stdout);
 
 }
 
@@ -98,6 +101,12 @@ var screen = function (ctx, next) {
     startScreenCasting(castDeviceIndexes)
     var port = ctx.options['stdin-port'] || 4104;
     var ip = ctx.options.myip || internalIp.v4.sync();
+
+    //override settings
+    ctx.options.streamType = "LIVE"
+    ctx.options.startTime = null // starts from live position
+    ctx.options.media = {duration: -1}
+
     ctx.options.playlist[0] = {
         path: 'http://' + ip + ':' + port + '/capture.m3u8',
         type: 'video/x-mpegURL'
@@ -105,10 +114,18 @@ var screen = function (ctx, next) {
 
     http.createServer(function (req, res) {
         debug('received request ' + req.url);
+        res.on('finish', function () {
+            debug('finish response ' + req.url);
+        });
         var type = 'application/x-mpegURL';
         readFileWithRetries(
             req.url.replace("/", ""),
             function (s) {
+                // if(req.url.endsWith("m3u8")) {
+                //     s.on('data', function (data) {
+                //         debug('send response ' + req.url + ' data ' + data.toString());
+                //     });
+                // }
                 res.setHeader("Content-Type", type)
                 res.setHeader("Access-Control-Allow-Origin", "*")
                 s.pipe(res);
